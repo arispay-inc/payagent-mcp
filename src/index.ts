@@ -1,42 +1,46 @@
 /**
  * payagent-mcp — MCP server that lets AI agents pay for APIs.
  *
- * Exposes two tools:
- *   - pay_api: Make an HTTP request, automatically handling 402 payments with USDC
- *   - check_budget: Check how much USDC has been spent and remaining budget
+ * Thin wrapper around `payagent`'s delegated signing path. No private keys
+ * touch this process — ArisPay holds a Coinbase CDP-managed wallet and
+ * enforces spend limits server-side.
  *
  * Configuration via environment variables:
- *   - PAYAGENT_PRIVATE_KEY: Ethereum private key (hex, required)
- *   - PAYAGENT_BUDGET_USDC: Total session budget in USDC (default: 10.00)
+ *   - ARISPAY_URL:         ArisPay API base URL (default: https://api.arispay.app)
+ *   - ARISPAY_AGENT_KEY:   The agent-scoped API key returned by createX402Agent (required)
+ *   - PAYAGENT_WALLET:     Optional wallet address for `check_wallet` tool output
  */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { ethers } from 'ethers';
-import { SpendTracker, handlePaidRequest } from './payment.js';
+import { payFetchDelegated, getUSDCBalance, formatUSDC } from 'payagent';
 
 // ── Config from env ─────────────────────────────────
 
-const privateKey = process.env.PAYAGENT_PRIVATE_KEY;
-if (!privateKey) {
-  console.error('Error: PAYAGENT_PRIVATE_KEY environment variable is required');
+const arispayUrl = process.env.ARISPAY_URL ?? 'https://api.arispay.app';
+const agentKey = process.env.ARISPAY_AGENT_KEY;
+const walletAddress = process.env.PAYAGENT_WALLET;
+
+if (!agentKey) {
+  console.error(
+    'Error: ARISPAY_AGENT_KEY environment variable is required.\n' +
+    'Provision an agent at https://payagent.arispay.app to get a key.',
+  );
   process.exit(1);
 }
 
-const budgetUSDC = parseFloat(process.env.PAYAGENT_BUDGET_USDC ?? '10.00');
-const tracker = new SpendTracker(budgetUSDC);
-
-// Derive wallet address for display
-const walletAddress = new ethers.Wallet(privateKey).address;
+const fetch402 = payFetchDelegated({
+  arispayUrl,
+  apiKey: agentKey,
+});
 
 // ── MCP Server ──────────────────────────────────────
 
 const server = new McpServer({
   name: 'payagent',
-  version: '1.0.0',
+  version: '2.0.0',
 });
 
-// Tool: pay_api
 server.tool(
   'pay_api',
   {
@@ -53,35 +57,24 @@ server.tool(
       .string()
       .optional()
       .describe('Request body (for POST/PUT/PATCH)'),
-    maxPaymentUSDC: z
-      .number()
-      .default(1.0)
-      .describe('Maximum USDC to pay for this single request. Fails if the API charges more.'),
   },
-  async ({ url, method, headers, body, maxPaymentUSDC }) => {
+  async ({ url, method, headers, body }) => {
     try {
-      const result = await handlePaidRequest(url, {
+      const response = await fetch402(url, {
         method,
         headers,
         body,
-        privateKey: privateKey!,
-        maxPaymentUSDC,
-        tracker,
       });
-
-      const summary = result.paid
-        ? `Paid $${result.amount} USDC. Budget remaining: $${tracker.remaining.toFixed(2)}`
-        : 'No payment required.';
+      const responseBody = await response.text();
 
       return {
         content: [
           {
             type: 'text' as const,
             text: [
-              `HTTP ${result.status}`,
-              summary,
+              `HTTP ${response.status}`,
               '',
-              result.body,
+              responseBody,
             ].join('\n'),
           },
         ],
@@ -100,26 +93,28 @@ server.tool(
   },
 );
 
-// Tool: check_budget
 server.tool(
-  'check_budget',
+  'check_wallet',
   {},
   async () => {
-    const payments = tracker.history;
     const lines = [
-      `Wallet: ${walletAddress}`,
-      `Budget: $${budgetUSDC.toFixed(2)} USDC`,
-      `Spent:  $${tracker.spent.toFixed(2)} USDC`,
-      `Left:   $${tracker.remaining.toFixed(2)} USDC`,
-      `Payments: ${payments.length}`,
+      `ArisPay URL: ${arispayUrl}`,
+      `Agent key:   ${agentKey.slice(0, 10)}…`,
     ];
 
-    if (payments.length > 0) {
-      lines.push('', 'Recent payments:');
-      for (const p of payments.slice(-10)) {
-        lines.push(`  ${p.timestamp} — $${p.amount} USDC → ${p.url}`);
+    if (walletAddress) {
+      lines.push(`Wallet:      ${walletAddress}`);
+      try {
+        const raw = await getUSDCBalance(walletAddress, 'base');
+        lines.push(`Balance:     ${formatUSDC(raw)} USDC on Base`);
+      } catch (err) {
+        lines.push(`Balance:     unavailable (${err instanceof Error ? err.message : String(err)})`);
       }
+    } else {
+      lines.push('', 'Set PAYAGENT_WALLET=0x… in env to include on-chain balance.');
     }
+
+    lines.push('', 'Delegation limits + full spend history: https://payagent.arispay.app');
 
     return {
       content: [{ type: 'text' as const, text: lines.join('\n') }],
