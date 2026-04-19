@@ -41,9 +41,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/stevemilton/payagent-mcp.git"
+    "url": "git+https://github.com/arispay-inc/payagent-mcp.git"
   },
-  "homepage": "https://github.com/stevemilton/payagent-mcp#readme",
+  "homepage": "https://github.com/arispay-inc/payagent-mcp#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "payagent": "^2.0.0",
