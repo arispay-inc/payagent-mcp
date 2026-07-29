@@ -1,3 +1,6 @@
+> [!NOTE]
+> **Canonical source has moved.** `@arispay/payagent-mcp` is developed and released from ArisPay's consolidated monorepo; this repository is a pre-consolidation snapshot (April 2026) kept for history and may lag the published package. The npm package is authoritative: https://www.npmjs.com/package/@arispay/payagent-mcp
+
 # @arispay/payagent-mcp
 
 MCP server for [ArisPay](https://arispay.app)-delegated x402 USDC payments. Lets AI agents call paid APIs and settle HTTP 402 challenges with USDC on Base — no private keys ever live in this process.
