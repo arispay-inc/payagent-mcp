@@ -1,0 +1,66 @@
+# Smithery configuration for @arispay/payagent-mcp
+# https://smithery.ai/docs/config
+
+name: payagent
+displayName: PayAgent (ArisPay)
+description: >
+  Give your AI agent a wallet. Pay any x402-priced API in USD (USDC) or EUR
+  (EURC) on Base, check balances, and self-onboard with one tool call —
+  delegated custody via ArisPay, so no private keys ever touch the agent.
+  Settlement runs through the open ArisPay x402 facilitator
+  (https://facilitator.arispay.app — no facilitator fee).
+
+# MCP runtime — stdio subprocess via npx
+runtime: stdio
+command:
+  type: npx
+  name: "@arispay/payagent-mcp"
+
+# User-configurable environment variables
+env:
+  ARISPAY_API_KEY:
+    description: >
+      Optional. ArisPay developer API key (ap_live_… / ap_test_…). The
+      create_user tool can self-provision one from just an email, and
+      credentials persist to ~/.payagent/config.json. Alternatively set
+      PAYAGENT_PRIVATE_KEY to sign locally with no account at all.
+    required: false
+  PAYAGENT_PRIVATE_KEY:
+    description: >
+      Optional. Hex private key of a funded EOA for local self-custody
+      signing (no ArisPay account). pay_api signs in-process with it and
+      check_wallet shows its deposit address. Use a dedicated low-balance
+      wallet.
+    required: false
+  PAYAGENT_MCP_PROFILE:
+    description: >
+      Optional. Set to "core" to load only the 8 pay-URL tools instead of the
+      full 13-tool surface. Default: "all".
+    required: false
+
+tags:
+  - payments
+  - x402
+  - wallet
+  - usdc
+  - eurc
+  - micropayments
+  - agentic-commerce
+
+categories:
+  - Finance
+
+homepage: https://arispay.app
+repository: https://github.com/arispay-inc/ArisPay
+license: MIT
+
+examples:
+  - name: Pay a paid API
+    description: Fetch an x402-protected URL, paying transparently
+    query: use pay_api to call https://api.example.com/paid-endpoint
+  - name: Self-onboard from nothing
+    description: Provision a developer account + funded-ready agent wallet in one call
+    query: bootstrap an ArisPay agent for me with my email
+  - name: Check the wallet
+    description: Report agent credentials and on-chain USDC balance
+    query: what's my agent's wallet balance?
