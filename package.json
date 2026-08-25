@@ -1,7 +1,7 @@
 {
   "name": "@arispay/payagent-mcp",
-  "version": "3.3.0",
-  "description": "MCP server that gives AI agents a wallet: pay x402 APIs (USD + EUR), check balances, self-onboard with one tool call. Use with Claude, Cursor, or any MCP client — delegated custody, no private keys on the agent.",
+  "version": "4.0.0",
+  "description": "One coherent USDC payment product for AI agents: pay x402 APIs on Base, Solana, and BNB Chain with spend mandates, receipts, and idempotency. Six tools: setup, discover, inspect, pay, balance, history. Use with Claude, Cursor, or any MCP client.",
   "type": "module",
   "bin": {
     "payagent-mcp": "dist/index.js"
@@ -39,7 +39,7 @@
     "delegated-custody",
     "agent-wallet",
     "agent-payments",
-    "eurc",
+    "solana",
     "pay-for-api",
     "agentic-commerce",
     "bootstrap"
@@ -51,13 +51,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/arispay-inc/arispay-x402.git",
-    "directory": "packages/payagent-mcp"
+    "url": "git+https://github.com/arispay-inc/payagent-mcp.git"
   },
-  "homepage": "https://github.com/arispay-inc/arispay-x402/tree/main/packages/payagent-mcp#readme",
+  "homepage": "https://github.com/arispay-inc/payagent-mcp#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
-    "payagent": "^2.19.0",
+    "payagent": "^2.21.0",
     "zod": "^3.25.0"
   },
   "devDependencies": {
@@ -68,6 +67,6 @@
   "private": false,
   "mcpName": "io.github.stevemilton/payagent-mcp",
   "bugs": {
-    "url": "https://github.com/arispay-inc/arispay-x402/issues"
+    "url": "https://github.com/arispay-inc/payagent-mcp/issues"
   }
 }

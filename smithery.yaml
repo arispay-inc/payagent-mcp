@@ -4,11 +4,15 @@
 name: payagent
 displayName: PayAgent (ArisPay)
 description: >
-  Give your AI agent a wallet. Pay any x402-priced API in USD (USDC) or EUR
-  (EURC) on Base, check balances, and self-onboard with one tool call —
-  delegated custody via ArisPay, so no private keys ever touch the agent.
-  Settlement runs through the open ArisPay x402 facilitator
-  (https://facilitator.arispay.app — no facilitator fee).
+  One coherent USDC payment product for AI agents. Six tools — setup,
+  discover, inspect, pay, balance, history — pay any x402-priced API on
+  Base, Solana, or BNB Chain under a server-enforced spend mandate
+  (delegated custody, no private keys on the agent), or set
+  PAYAGENT_PRIVATE_KEY to sign locally with no account. Every payment
+  returns a structured receipt; pay requires an idempotency key so a
+  retried call never double-pays. Settlement runs through the open
+  ArisPay x402 facilitator (https://facilitator.arispay.app — no
+  facilitator fee).
 
 # MCP runtime — stdio subprocess via npx
 runtime: stdio
@@ -21,21 +25,22 @@ env:
   ARISPAY_API_KEY:
     description: >
       Optional. ArisPay developer API key (ap_live_… / ap_test_…). The
-      create_user tool can self-provision one from just an email, and
+      setup tool can self-provision one from just an email, and
       credentials persist to ~/.payagent/config.json. Alternatively set
       PAYAGENT_PRIVATE_KEY to sign locally with no account at all.
     required: false
   PAYAGENT_PRIVATE_KEY:
     description: >
       Optional. Hex private key of a funded EOA for local self-custody
-      signing (no ArisPay account). pay_api signs in-process with it and
-      check_wallet shows its deposit address. Use a dedicated low-balance
+      signing (no ArisPay account). pay signs in-process with it and
+      balance shows its deposit address. Use a dedicated low-balance
       wallet.
     required: false
   PAYAGENT_MCP_PROFILE:
     description: >
-      Optional. Set to "core" to load only the 8 pay-URL tools instead of the
-      full 13-tool surface. Default: "all".
+      Optional. Set to "admin" to additionally load the four
+      wallet-administration tools (create_agent, fund_agent,
+      list_agents, rename_agent). Default: the six core tools.
     required: false
 
 tags:
@@ -43,7 +48,6 @@ tags:
   - x402
   - wallet
   - usdc
-  - eurc
   - micropayments
   - agentic-commerce
 
@@ -51,16 +55,16 @@ categories:
   - Finance
 
 homepage: https://arispay.app
-repository: https://github.com/arispay-inc/ArisPay
+repository: https://github.com/arispay-inc/payagent-mcp
 license: MIT
 
 examples:
   - name: Pay a paid API
-    description: Fetch an x402-protected URL, paying transparently
-    query: use pay_api to call https://api.example.com/paid-endpoint
+    description: Fetch an x402-protected URL, paying transparently with a receipt
+    query: use pay to call https://api.example.com/paid-endpoint
   - name: Self-onboard from nothing
-    description: Provision a developer account + funded-ready agent wallet in one call
-    query: bootstrap an ArisPay agent for me with my email
+    description: Provision an account + mandate-bounded payer wallet in one call
+    query: set up an ArisPay payer wallet for me with my email
   - name: Check the wallet
-    description: Report agent credentials and on-chain USDC balance
-    query: what's my agent's wallet balance?
+    description: Report the active identity, deposit address, and on-chain USDC balance
+    query: what's my wallet balance?

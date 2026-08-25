@@ -1,20 +1,19 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "io.github.stevemilton/payagent-mcp",
-  "description": "Gives AI agents a wallet: pay x402 APIs (USD + EUR), check balances, self-onboard in one tool call.",
+  "description": "One coherent USDC payment product for AI agents: pay x402 APIs on Base, Solana, and BNB Chain with spend mandates, receipts, and idempotency.",
   "repository": {
-    "url": "https://github.com/arispay-inc/ArisPay",
-    "source": "github",
-    "subfolder": "packages/payagent-mcp"
+    "url": "https://github.com/arispay-inc/payagent-mcp",
+    "source": "github"
   },
   "websiteUrl": "https://arispay.app",
-  "version": "3.3.1",
+  "version": "4.0.0",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@arispay/payagent-mcp",
-      "version": "3.3.0",
+      "version": "4.0.0",
       "transport": {
         "type": "stdio"
       },
