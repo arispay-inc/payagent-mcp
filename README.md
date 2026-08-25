@@ -31,7 +31,7 @@ Every tool declares MCP safety annotations (`readOnlyHint`, `destructiveHint`, `
 | USDC | Base (default) | ✅ | ✅ |
 | USDC | Ethereum, Polygon | ✅ | ✅ |
 | USDC | Base Sepolia (testnet) | ✅ | ✅ |
-| USDC (SPL) | Solana, Solana devnet | ❌ (EVM signing only) | ✅ (deployment-gated) |
+| USDC (SPL) | Solana, Solana devnet | ❌ (EVM signing only) | ✅ (live on `api.arispay.app` since 2026-08-25) |
 | USD1 | BNB Chain | ✅ | ✅ |
 
 Notes:
