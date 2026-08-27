@@ -1,7 +1,7 @@
 {
   "name": "@arispay/payagent-mcp",
-  "version": "4.0.0",
-  "description": "One coherent USDC payment product for AI agents: pay x402 APIs on Base, Solana, and BNB Chain with spend mandates, receipts, and idempotency. Six tools: setup, discover, inspect, pay, balance, history. Use with Claude, Cursor, or any MCP client.",
+  "version": "4.1.0",
+  "description": "One coherent USDC payment product for AI agents: pay x402 APIs on Base, Solana, and BNB Chain with spend mandates, receipts, and idempotency. Seven tools: setup, discover, inspect, pay, balance, history, check_payment_signal. Use with Claude, Cursor, or any MCP client.",
   "type": "module",
   "bin": {
     "payagent-mcp": "dist/index.js"
@@ -56,7 +56,7 @@
   "homepage": "https://github.com/arispay-inc/payagent-mcp#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
-    "payagent": "^2.21.0",
+    "payagent": "^2.23.0",
     "zod": "^3.25.0"
   },
   "devDependencies": {
@@ -65,7 +65,7 @@
     "typescript": "^5.7.0"
   },
   "private": false,
-  "mcpName": "io.github.stevemilton/payagent-mcp",
+  "mcpName": "io.github.stevemilton/x402-payagent-mcp",
   "bugs": {
     "url": "https://github.com/arispay-inc/payagent-mcp/issues"
   }

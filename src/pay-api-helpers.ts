@@ -1,5 +1,5 @@
 /**
- * Helpers for the `pay_api` MCP tool.
+ * Helpers for the `pay` MCP tool.
  *
  * Extracted into their own module so the heuristic that triggers
  * automatic Onramp-URL surfacing is unit-testable. The trigger has to

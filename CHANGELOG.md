@@ -1,5 +1,31 @@
 # @arispay/payagent-mcp
 
+## 4.1.0
+
+### Minor Changes
+
+- 701c299: New core tool `check_payment_signal`: buys ArisPay Signal — recent signed probe evidence about an x402 resource (arispay.signal.v1) — for 1¢ per uncached call. A still-valid cached artifact returns without spending; an unknown resource is answered free. The tool is destructive-annotated like `pay` (it spends real money) and its description carries the cumulative-exposure decision rule. Requires `payagent` ≥ 2.23 for the Signal exports; on older floors the tool reports the SDK as too old instead of failing to start.
+
+### Patch Changes
+
+- Updated dependencies [701c299]
+- Updated dependencies [6cffc5b]
+  - payagent@2.23.0
+
+## 4.0.1
+
+### Patch Changes
+
+- MCP-registry discoverability: rename the registry identity to
+  `io.github.stevemilton/x402-payagent-mcp` (`mcpName` + `server.json`
+  name). The registry search matches the NAME only — a description
+  containing "x402" does not surface the server (verified live during
+  the water-test runs), so a cold agent searching the registry for
+  "x402" never found us. The new name carries both "x402" and
+  "payagent" tokens. The npm install name `@arispay/payagent-mcp` is
+  unchanged; only the registry identity moved. A release gate now
+  asserts the name === mcpName and contains "x402".
+
 ## 4.0.0
 
 ### Major Changes
@@ -43,7 +69,6 @@
   lockstep with `server.json`, the exact tools/list surface, the
   annotation + description rubric, and the absence of retired product
   references.
-
 
 ## 3.4.0
 

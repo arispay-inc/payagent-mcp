@@ -56,10 +56,31 @@ describe("release gate — one identical version", () => {
       expect(p.version).toBe(pkg.version);
     }
   });
+
+  it("registry name === package mcpName, and carries the x402 discovery token", () => {
+    // The MCP registry search matches the NAME only (verified live: a
+    // description containing "x402" does not surface the server for an
+    // "x402" query — water-test run #1/#2). The registry also binds the
+    // server name to the npm package's mcpName. So both must agree, and
+    // the name must contain "x402" or a cold agent never finds us.
+    const pkg = readJson("package.json") as { mcpName: string };
+    const serverJson = readJson("server.json") as { name: string };
+    expect(serverJson.name).toBe(pkg.mcpName);
+    expect(serverJson.name).toContain("x402");
+    // Keep "payagent" too, so the existing-brand search still resolves.
+    expect(serverJson.name).toContain("payagent");
+  });
+
+  it("server.json description fits the MCP registry's 100-char cap", () => {
+    // registry.modelcontextprotocol.io rejects publishes with
+    // "expected length <= 100" (hit live on the 4.0.0 publish).
+    const serverJson = readJson("server.json") as { description: string };
+    expect(serverJson.description.length).toBeLessThanOrEqual(100);
+  });
 });
 
 describe("release gate — tools/list surface", () => {
-  it("core profile exposes exactly the six core tools", async () => {
+  it("core profile exposes exactly the seven core tools", async () => {
     const tools = await listToolsFor("core");
     expect(tools.map((t) => t.name).sort()).toEqual([...CORE_TOOL_NAMES].sort());
   });
@@ -82,11 +103,15 @@ describe("release gate — tools/list surface", () => {
     }
   });
 
-  it("pay is the only destructive tool and is marked as spending money", async () => {
+  it("pay and check_payment_signal are the only destructive tools", async () => {
+    // Deliberate pair (P2, 2026-08-27): check_payment_signal buys the 1¢
+    // Signal artifact on uncached calls, so it spends real money too.
+    // Adding a third destructive tool must change this gate on purpose.
+    const SPENDING_TOOLS = new Set(["pay", "check_payment_signal"]);
     const tools = await listToolsFor("admin");
     for (const tool of tools) {
       const destructive = (tool.annotations as { destructiveHint?: boolean }).destructiveHint;
-      expect(destructive, `${tool.name}.destructiveHint`).toBe(tool.name === "pay");
+      expect(destructive, `${tool.name}.destructiveHint`).toBe(SPENDING_TOOLS.has(tool.name));
     }
   });
 });
@@ -146,7 +171,7 @@ describe("profile resolution", () => {
     expect(resolveProfile("admin")).toBe("admin");
     expect(resolveProfile("all")).toBe("admin");
     expect(resolveProfile("FULL")).toBe("admin");
-    expect(toolNamesForProfile("core")).toHaveLength(6);
-    expect(toolNamesForProfile("admin")).toHaveLength(10);
+    expect(toolNamesForProfile("core")).toHaveLength(7);
+    expect(toolNamesForProfile("admin")).toHaveLength(11);
   });
 });

@@ -4,8 +4,9 @@
 name: payagent
 displayName: PayAgent (ArisPay)
 description: >
-  One coherent USDC payment product for AI agents. Six tools — setup,
-  discover, inspect, pay, balance, history — pay any x402-priced API on
+  One coherent USDC payment product for AI agents. Seven tools — setup,
+  discover, inspect, pay, balance, history, check_payment_signal — pay
+  any x402-priced API on
   Base, Solana, or BNB Chain under a server-enforced spend mandate
   (delegated custody, no private keys on the agent), or set
   PAYAGENT_PRIVATE_KEY to sign locally with no account. Every payment
@@ -40,7 +41,7 @@ env:
     description: >
       Optional. Set to "admin" to additionally load the four
       wallet-administration tools (create_agent, fund_agent,
-      list_agents, rename_agent). Default: the six core tools.
+      list_agents, rename_agent). Default: the seven core tools.
     required: false
 
 tags:

@@ -3,7 +3,7 @@
  *
  * The `payagent` SDK functions are injected, so these tests run without a
  * built `payagent` dist. Locks in:
- *   - result shaping (ranked list, pay_api follow-up hint)
+ *   - result shaping (ranked list, pay follow-up hint)
  *   - cents integrity: output carries integer cents; never a float dollars value
  *   - budget validation (integer cents only), limit clamping (default 5, max 20)
  *   - error paths: empty results, non-402 inspect, SDK failure
@@ -40,7 +40,7 @@ const sampleDiscover: DiscoverResult = {
 };
 
 describe("runDiscoverPaidApi", () => {
-  it("shapes ranked results with integer cents and a pay_api follow-up", async () => {
+  it("shapes ranked results with integer cents and a pay follow-up", async () => {
     const impl = vi.fn(async (_input: DiscoverInput) => sampleDiscover);
     const result = await runDiscoverPaidApi({ query: "flight search" }, impl);
 
@@ -53,7 +53,7 @@ describe("runDiscoverPaidApi", () => {
     expect(result.text).toContain("150¢ (€1.50)");
     expect(result.text).toContain("healthy:  yes   verified: yes   source: arispay");
     expect(result.text).toContain("healthy:  no   verified: no   source: bazaar");
-    expect(result.text).toContain("pay_api({ url })");
+    expect(result.text).toContain("pay({ url, idempotencyKey })");
     // Never a float dollars value.
     expect(result.text).not.toMatch(/\$0\.030+[1-9]?/);
     expect(result.text).not.toMatch(/0\.030{2,}/);

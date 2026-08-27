@@ -1,5 +1,5 @@
 /**
- * Tests for the `pay_api` insufficient-funds heuristic.
+ * Tests for the `pay` insufficient-funds heuristic.
  *
  * False positives here turn legit errors (allowed-domain blocks,
  * suspended agents, network failures) into misleading "fund your

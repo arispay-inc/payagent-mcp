@@ -1,8 +1,9 @@
 /**
  * payagent-mcp — stdio entrypoint.
  *
- * One coherent USDC/x402 payment product. Six core tools (default
- * profile): setup, discover, inspect, pay, balance, history. Four
+ * One coherent USDC/x402 payment product. Seven core tools (default
+ * profile): setup, discover, inspect, pay, balance, history,
+ * check_payment_signal. Four
  * wallet-administration tools load additionally under
  * PAYAGENT_MCP_PROFILE=admin: create_agent, fund_agent, list_agents,
  * rename_agent.

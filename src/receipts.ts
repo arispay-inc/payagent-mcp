@@ -46,6 +46,11 @@ export interface PaymentReceipt {
   settlement?: { transaction?: string; network?: string; payer?: string } | null;
   /** Remaining mandate headroom after this payment (delegated mode, integer cents). */
   spend?: { remainingDaily: number; remainingMonthly: number };
+  /**
+   * True when the server's idempotency cache replayed the previously
+   * signed payment for this key — no new spend happened server-side.
+   */
+  serverReplayed?: boolean;
   /** First 2000 chars of the paid response body (for cached-receipt replays). */
   bodyExcerpt?: string;
   /** Set when the request failed after the payment was signed. */

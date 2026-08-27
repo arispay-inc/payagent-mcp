@@ -1,32 +1,32 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
-  "name": "io.github.stevemilton/payagent-mcp",
+  "name": "io.github.stevemilton/x402-payagent-mcp",
   "description": "Pay x402 APIs in USDC on Base, Solana, and BNB Chain with spend mandates, receipts, idempotency.",
   "repository": {
     "url": "https://github.com/arispay-inc/payagent-mcp",
     "source": "github"
   },
   "websiteUrl": "https://arispay.app",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@arispay/payagent-mcp",
-      "version": "4.0.0",
+      "version": "4.1.0",
       "transport": {
         "type": "stdio"
       },
       "environmentVariables": [
         {
           "name": "ARISPAY_API_KEY",
-          "description": "ArisPay developer API key (ap_live_\u2026 / ap_test_\u2026). Optional \u2014 the create_user tool can self-provision one from just an email, or set PAYAGENT_PRIVATE_KEY to sign locally with no account.",
+          "description": "ArisPay developer API key (ap_live_… / ap_test_…). Optional — the setup tool can self-provision one from just an email, or set PAYAGENT_PRIVATE_KEY to sign locally with no account.",
           "isRequired": false,
           "isSecret": true
         },
         {
           "name": "PAYAGENT_PRIVATE_KEY",
-          "description": "EVM private key for permissionless local signing (zero-signup mode): pay_api signs x402 payments with it directly \u2014 no ArisPay account needed. Generate one with `npx payagent wallet new`. Never sent to any server.",
+          "description": "EVM private key for permissionless local signing (zero-signup mode): pay signs x402 payments with it directly — no ArisPay account needed. Generate one with `npx payagent wallet new`. Never sent to any server.",
           "isRequired": false,
           "isSecret": true
         }

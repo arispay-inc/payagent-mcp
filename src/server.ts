@@ -57,6 +57,22 @@ const deriveLocalWalletAddress = (
   payagentExports as { deriveLocalWalletAddress?: (privateKey: string) => string }
 ).deriveLocalWalletAddress;
 
+// checkPaymentSignal ships in payagent ≥ 2.23. Namespace lookup (same
+// pattern as deriveLocalWalletAddress) so this server still starts against
+// the older published payagent versions the declared floor allows.
+const checkPaymentSignal = (
+  payagentExports as unknown as {
+    checkPaymentSignal?: (options: Record<string, unknown>) => Promise<{
+      outcome: string;
+      canonicalUrl: string;
+      paid: boolean;
+      artifact?: Record<string, unknown>;
+      notice?: Record<string, unknown>;
+      verification?: { verified: boolean | null; reason?: string } | null;
+    }>;
+  }
+).checkPaymentSignal;
+
 /**
  * Single version source: the package's own package.json. Works from both
  * src/ (dev) and dist/ (published bundle) — each sits one level below the
@@ -325,6 +341,10 @@ export function createServer(profile: Profile = "core"): McpServer {
         const fetch402 = payFetchDelegated({
           arispayUrl,
           apiKey: stored.apiKey,
+          // End-to-end guard: the server replays its signed result for a
+          // repeated key inside the sign-cache TTL — no double spend even
+          // when the local receipt store is empty (fresh machine).
+          idempotencyKey,
           onPayment: (info) => {
             paymentInfo = info;
           },
@@ -349,6 +369,7 @@ export function createServer(profile: Profile = "core"): McpServer {
                   remainingDaily: paymentInfo.remainingDaily,
                   remainingMonthly: paymentInfo.remainingMonthly,
                 },
+                ...(paymentInfo.replayed ? { serverReplayed: true } : {}),
               }
             : {}),
           settlement: decodeSettlementHeader(response.headers.get("x-payment-response")),
@@ -510,6 +531,106 @@ export function createServer(profile: Profile = "core"): McpServer {
         );
       }
       return textResult(JSON.stringify({ receipts }, null, 2));
+    },
+  );
+
+  // --- check_payment_signal (core) ------------------------------------------
+
+  server.registerTool(
+    "check_payment_signal",
+    {
+      description: TOOL_META.check_payment_signal.description,
+      annotations: TOOL_META.check_payment_signal.annotations,
+      inputSchema: {
+        resource: z
+          .string()
+          .describe(
+            "The exact absolute HTTPS URL of the x402 resource you are about to pay. Signal evidence is keyed by this exact URL.",
+          ),
+        agent: z
+          .string()
+          .optional()
+          .describe("Optional name of a stored x402 payer agent (delegated mode)."),
+      },
+    },
+    async ({ resource, agent }) => {
+      if (!checkPaymentSignal) {
+        return textResult(
+          "check_payment_signal requires a newer `payagent` package than is installed. Update payagent and retry.",
+          true,
+        );
+      }
+      // Same payer resolution as `pay`: local key wins, else stored agent.
+      const localKey = process.env.PAYAGENT_PRIVATE_KEY;
+      let payFetch: unknown;
+      if (localKey) {
+        payFetch = payFetchLocal({ privateKey: localKey });
+      } else {
+        const stored = agent ? getAgent(agent) : listAgents()[0];
+        if (!stored?.apiKey) {
+          return textResult(
+            [
+              "No payment identity available for the 1¢ Signal purchase.",
+              "Run setup({ email }) for a managed wallet, or set PAYAGENT_PRIVATE_KEY for self-custody.",
+            ].join("\n"),
+            true,
+          );
+        }
+        payFetch = payFetchDelegated({ arispayUrl, apiKey: stored.apiKey });
+      }
+      try {
+        const result = await checkPaymentSignal({ resource, payFetch });
+        if (result.outcome === "uncovered") {
+          return textResult(
+            [
+              `ArisPay Signal holds NO usable evidence for ${result.canonicalUrl}. No money was spent.`,
+              "",
+              JSON.stringify(result.notice ?? {}, null, 2),
+            ].join("\n"),
+          );
+        }
+        const verdict = (result.artifact?.verdict ?? {}) as {
+          signal?: string;
+          grade?: string;
+          inconclusive?: boolean;
+          reasonCodes?: string[];
+        };
+        const exp = result.artifact?.exp;
+        const spendLine =
+          result.outcome === "cached"
+            ? "Served from the local cache — no money was spent."
+            : result.outcome === "replayed"
+              ? "Server replayed a prior purchase — no additional money was spent."
+              : result.paid
+                ? "Purchased fresh evidence for 1¢ (USDC, Base mainnet)."
+                : "Fresh evidence returned; the server did not report a charge.";
+        const verifiedLine =
+          result.verification == null || result.verification.verified === null
+            ? `Signature: not verified (${result.verification?.reason ?? "cached artifact"}).`
+            : "Signature: verified against the published JWKS.";
+        return textResult(
+          [
+            `Signal for ${result.canonicalUrl}: ${verdict.signal ?? "?"} — ${verdict.grade ?? "?"}` +
+              `${verdict.inconclusive ? " (inconclusive)" : ""}`,
+            `Reasons: ${(verdict.reasonCodes ?? []).join(", ")}`,
+            typeof exp === "number"
+              ? `Valid until ${new Date(exp * 1000).toISOString()} (cached until then — re-check after).`
+              : "",
+            spendLine,
+            verifiedLine,
+            "Signed observational evidence — not a guarantee.",
+            "",
+            JSON.stringify({ artifact: result.artifact }, null, 2),
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        );
+      } catch (err) {
+        return textResult(
+          `check_payment_signal failed: ${err instanceof Error ? err.message : String(err)}`,
+          true,
+        );
+      }
     },
   );
 

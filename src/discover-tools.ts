@@ -86,7 +86,7 @@ export async function runDiscoverPaidApi(
         `   healthy:  ${c.healthy === false ? "no" : "yes"}   verified: ${c.verified ? "yes" : "no"}${c.source ? `   source: ${c.source}` : ""}`,
       ].join("\n"),
     );
-    lines.push("", "Read-only — nothing was paid. Call one with pay_api({ url }).");
+    lines.push("", "Read-only — nothing was paid. Call one with pay({ url, idempotencyKey }).");
     return { text: lines.join("\n"), isError: false };
   } catch (err) {
     return {
@@ -130,7 +130,7 @@ export async function runInspectPaidApi(
         "  (The server settles through this facilitator — its choice, not the payer's.)",
       );
     }
-    lines.push("", "Read-only — no payment was sent. Pay with pay_api({ url }).");
+    lines.push("", "Read-only — no payment was sent. Pay with pay({ url, idempotencyKey }).");
     return { text: lines.join("\n"), isError: false };
   } catch (err) {
     return {

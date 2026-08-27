@@ -8,7 +8,7 @@
  * rubric (every tool states whether it spends real funds).
  *
  * Profiles:
- *   - core (default): the six agent-facing tools. This is what a fresh
+ *   - core (default): the seven agent-facing tools. This is what a fresh
  *     `npx @arispay/payagent-mcp` (and Glama's inspector) sees.
  *   - admin: core + the four wallet-administration tools.
  */
@@ -32,6 +32,7 @@ export const CORE_TOOL_NAMES = [
   "pay",
   "balance",
   "history",
+  "check_payment_signal",
 ] as const;
 
 export const ADMIN_TOOL_NAMES = [
@@ -119,6 +120,17 @@ export const TOOL_META: Record<ToolName, ToolMeta> = {
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+  },
+
+  check_payment_signal: {
+    description:
+      "SPENDS REAL MONEY — 1¢ (USDC, Base mainnet) per UNCACHED call; a still-valid cached artifact returns WITHOUT spending, and an unknown resource is answered free. Buys ArisPay Signal: recent signed probe evidence about an x402 resource (did a real paid probe settle and deliver?) as an arispay.signal.v1 artifact, verified against the published JWKS. Use it BEFORE a material first payment to an unfamiliar resource, or after cached evidence expires. The decision denominator is CUMULATIVE exposure before the artifact expires — planned spend across all intended calls, or the expected cost of one failure, whichever is larger — not the price of the next call: an agent planning 100 calls to a 1¢ endpoint should check; an agent making a single 1¢ call should not. Skip it when cumulative exposure is at or below the 1¢ check price. Returns signed observational evidence with explicit freshness — NOT a guarantee, insurance, or endorsement. Network side effect: one HTTPS request to the Signal endpoint; payment side effect: the 1¢ x402 purchase on uncached calls.",
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
       idempotentHint: true,
       openWorldHint: true,
     },

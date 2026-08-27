@@ -9,7 +9,7 @@ Two ways to hold the wallet:
 
 ## Tools
 
-Six core tools (the default surface):
+Seven core tools (the default surface):
 
 | Tool | What it does | Money |
 |------|--------------|-------|
@@ -19,10 +19,11 @@ Six core tools (the default surface):
 | `pay` | The complete machine path: request → 402 → select variant → validate policy → pay → structured receipt. Requires an `idempotencyKey`; a repeated key returns the cached receipt without paying again | **spends real money** |
 | `balance` | Active identity, deposit address, on-chain USDC balance, mandate limits | read-only |
 | `history` | Recent payments — server feed (delegated) or local receipts (self-custody) | read-only |
+| `check_payment_signal` | Buy ArisPay Signal: recent signed probe evidence about an x402 resource (did a real paid probe settle and deliver?). A still-valid cached artifact returns without spending; an unknown resource is answered free | **spends 1¢ per uncached call** |
 
 Wallet administration (`create_agent`, `fund_agent`, `list_agents`, `rename_agent`) loads only when the host config sets `PAYAGENT_MCP_PROFILE=admin`.
 
-Every tool declares MCP safety annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`); `pay` is the only destructive tool.
+Every tool declares MCP safety annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`); `pay` and `check_payment_signal` are the only destructive tools — both spend real money.
 
 ## Support matrix
 
@@ -82,7 +83,7 @@ Same server block in `.cursor/mcp.json`. **Windsurf:** same pattern in `~/.codei
 | `PAYAGENT_PRIVATE_KEY` | Funded EOA key for local self-custody signing (zero-signup mode). |
 | `ARISPAY_API_KEY` | Developer key — usually unneeded; `setup` self-provisions one. |
 | `ARISPAY_URL` | ArisPay API base URL. Default `https://api.arispay.app`. |
-| `PAYAGENT_MCP_PROFILE` | `admin` additionally loads the four wallet-administration tools. Default: core (six tools). |
+| `PAYAGENT_MCP_PROFILE` | `admin` additionally loads the four wallet-administration tools. Default: core (seven tools). |
 | `ARISPAY_AGENT_KEY` / `PAYAGENT_WALLET` | Legacy single-agent pair for v2.0.x hosts. |
 
 ## Migrating from v3
