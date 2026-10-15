@@ -42,6 +42,7 @@ import {
 // balance simply cannot derive the local-key deposit address.
 import * as payagentExports from "payagent";
 import { z } from "zod";
+import { bankLines } from "./bank.js";
 import { runDiscoverPaidApi, runInspectPaidApi } from "./discover-tools.js";
 import { looksLikeInsufficientFunds } from "./pay-api-helpers.js";
 import {
@@ -50,6 +51,8 @@ import {
   getReceipt,
   listReceipts,
   saveReceipt,
+  undeliveredMarker,
+  undeliveredRetryAgent,
 } from "./receipts.js";
 import { type Profile, TOOL_META } from "./tool-meta.js";
 
@@ -111,6 +114,25 @@ export function createServer(profile: Profile = "core"): McpServer {
   const legacyAgentKey = process.env.ARISPAY_AGENT_KEY;
   const legacyWalletAddress = process.env.PAYAGENT_WALLET;
 
+  /**
+   * The account holder's bank accounts (vIBANs): where fiat money is. Any
+   * ArisPay key of the account reads them. Empty when there is no key (self
+   * custody), when the deployment has no bank rail, or on a payagent older
+   * than getBankAccounts. Never fails the calling tool.
+   */
+  async function readBankLines(key: string | undefined, withDetails: boolean): Promise<string[]> {
+    if (!key) return [];
+    const client = new DelegationClient(arispayUrl, key) as DelegationClient & {
+      getBankAccounts?: DelegationClient["getBankAccounts"];
+    };
+    if (typeof client.getBankAccounts !== "function") return [];
+    try {
+      return bankLines(await client.getBankAccounts(), withDetails);
+    } catch (err) {
+      return [`Bank:        unavailable (${err instanceof Error ? err.message : String(err)})`];
+    }
+  }
+
   const server = new McpServer({ name: "payagent", version: PKG_VERSION });
 
   // --- setup (core) ---------------------------------------------------------
@@ -123,7 +145,9 @@ export function createServer(profile: Profile = "core"): McpServer {
       inputSchema: {
         email: z
           .string()
-          .describe("Email to register the account under. It is also the recovery key — use a real address."),
+          .describe(
+            "Email to register the account under. It is also the recovery key — use a real address.",
+          ),
         name: z.string().optional().describe("Human name. Falls back to the email local-part."),
       },
     },
@@ -143,14 +167,19 @@ export function createServer(profile: Profile = "core"): McpServer {
           "",
           `  Mandate: ${result.limits.perTx}¢ / tx, ${result.limits.daily}¢ / day, ${result.limits.monthly}¢ / month (integer cents, server-enforced)`,
           "",
-          "Next: fund the wallet by sending USDC on the network above (balance shows the address and confirms the deposit), then pay({ url, idempotencyKey }).",
+          "Next: fund the account — by bank transfer to the holder's own bank account, or by sending USDC on the network above (balance shows both and confirms the deposit) — then pay({ url, idempotencyKey }).",
         ];
+        const bank = await readBankLines(getApiKey() ?? undefined, false);
+        if (bank.length) lines.push("", ...bank);
         return textResult(lines.join("\n"));
       } catch (err) {
         if (err instanceof BootstrapError) {
           return textResult(`setup failed (${err.code}): ${err.message}`, true);
         }
-        return textResult(`setup failed: ${err instanceof Error ? err.message : String(err)}`, true);
+        return textResult(
+          `setup failed: ${err instanceof Error ? err.message : String(err)}`,
+          true,
+        );
       }
     },
   );
@@ -169,14 +198,22 @@ export function createServer(profile: Profile = "core"): McpServer {
           .int()
           .nonnegative()
           .optional()
-          .describe("Maximum acceptable price in INTEGER CENTS (500 = $5.00). Free listings always pass."),
+          .describe(
+            "Maximum acceptable price in INTEGER CENTS (500 = $5.00). Free listings always pass.",
+          ),
         category: z
           .string()
           .optional()
           .describe(
             "Optional category filter (inference, data, media, search, social, infrastructure, trading, other).",
           ),
-        limit: z.number().int().min(1).max(20).default(5).describe("Max results (default 5, max 20)."),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(20)
+          .default(5)
+          .describe("Max results (default 5, max 20)."),
       },
     },
     async ({ query, budgetCentsMax, category, limit }) => {
@@ -193,7 +230,9 @@ export function createServer(profile: Profile = "core"): McpServer {
       description: TOOL_META.inspect.description,
       annotations: TOOL_META.inspect.annotations,
       inputSchema: {
-        url: z.string().describe("The URL to inspect. Expected to return HTTP 402 with an x402 challenge."),
+        url: z
+          .string()
+          .describe("The URL to inspect. Expected to return HTTP 402 with an x402 challenge."),
       },
     },
     async ({ url }) => {
@@ -215,19 +254,34 @@ export function createServer(profile: Profile = "core"): McpServer {
           .string()
           .min(8)
           .describe(
-            "Caller-chosen unique key for this payment intent (min 8 chars, e.g. a UUID). Re-calling with a key that already paid returns the cached receipt WITHOUT paying again. Use a fresh key for each new payment intent.",
+            "Caller-chosen unique key for this payment intent (min 8 chars, e.g. a UUID). Re-calling with a key that already paid returns the cached receipt WITHOUT paying again — except a delegated payment the seller settled but did not deliver: re-calling within 9 minutes re-sends the SAME payment so the seller can re-serve it. Use a fresh key for each new payment intent.",
           ),
         method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH"]).default("GET"),
         headers: z.record(z.string(), z.string()).optional(),
         body: z.string().optional(),
-        agent: z.string().optional().describe("Optional name of a stored x402 payer agent (delegated mode)."),
+        agent: z
+          .string()
+          .optional()
+          .describe("Optional name of a stored x402 payer agent (delegated mode)."),
       },
     },
     async ({ url, idempotencyKey, method, headers, body, agent }) => {
       // Idempotency guard: a key that already produced a payment replays
-      // its receipt instead of paying again.
+      // its receipt instead of paying again. One exception: a DELEGATED
+      // payment the seller settled but did not deliver. Re-sending it with
+      // the same key inside the window makes ArisPay replay the same signed
+      // payment (no new spend) and the seller re-serve it — the bounded
+      // re-delivery path. Blocking it here forced a fresh key, i.e. a
+      // second payment.
       const prior = getReceipt(idempotencyKey);
-      if (prior) {
+      const retryAgent = undeliveredRetryAgent(prior);
+      if (retryAgent && agent && agent !== retryAgent) {
+        return textResult(
+          `Error: this idempotencyKey paid via agent \`${retryAgent}\`; retry it with that agent (or omit agent). Another agent would sign a new payment.`,
+          true,
+        );
+      }
+      if (prior && !retryAgent) {
         return textResult(
           [
             "DUPLICATE idempotencyKey — payment NOT repeated. Cached receipt:",
@@ -244,8 +298,9 @@ export function createServer(profile: Profile = "core"): McpServer {
       const localKey = process.env.PAYAGENT_PRIVATE_KEY;
 
       // Self-custody: local key signs in-process — no ArisPay account, no
-      // server-enforced mandate (the wallet balance is the cap).
-      if (localKey) {
+      // server-enforced mandate (the wallet balance is the cap). Never for a
+      // delegated re-delivery retry: a local key would sign a new payment.
+      if (localKey && !retryAgent) {
         let paymentInfo: LocalPaymentInfo | undefined;
         try {
           const fetch402 = payFetchLocal({
@@ -324,8 +379,11 @@ export function createServer(profile: Profile = "core"): McpServer {
       }
 
       // Delegated custody: the stored agent's mandate is validated
-      // server-side before ArisPay signs via Coinbase CDP.
-      const stored = agent ? getAgent(agent) : listAgents()[0];
+      // server-side before ArisPay signs via Coinbase CDP. A re-delivery
+      // retry must reuse the agent that signed: the server's replay cache is
+      // per (agent delegation, idempotencyKey).
+      const agentName = retryAgent ?? agent;
+      const stored = agentName ? getAgent(agentName) : listAgents()[0];
       if (!stored?.apiKey) {
         return textResult(
           [
@@ -384,6 +442,7 @@ export function createServer(profile: Profile = "core"): McpServer {
         );
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        const undelivered = undeliveredMarker(err, startedAt, prior);
         if (paymentInfo) {
           saveReceipt({
             idempotencyKey,
@@ -398,7 +457,18 @@ export function createServer(profile: Profile = "core"): McpServer {
             network: paymentInfo.chain,
             walletAddress: paymentInfo.walletAddress,
             error: message,
+            ...(undelivered ? { undelivered } : {}),
           });
+        }
+        if (undelivered && paymentInfo) {
+          return textResult(
+            [
+              `Error: ${message}`,
+              "",
+              `Safe retry: call pay again with the SAME idempotencyKey before ${undelivered.retryUntil}. The same payment is re-sent and the seller re-serves it — you are not charged again. After that time the key is locked as a duplicate.`,
+            ].join("\n"),
+            true,
+          );
         }
         if (looksLikeInsufficientFunds(message)) {
           return textResult(
@@ -452,7 +522,9 @@ export function createServer(profile: Profile = "core"): McpServer {
       }
       if (keyTail) lines.push(`Agent key:   ap_…${keyTail}`);
       if (!stored && !legacyWalletAddress && localAddress) {
-        lines.push("Mode:        local key (PAYAGENT_PRIVATE_KEY, self-custody — no ArisPay account)");
+        lines.push(
+          "Mode:        local key (PAYAGENT_PRIVATE_KEY, self-custody — no ArisPay account)",
+        );
       }
       if (localKey && deriveLocalWalletAddress && !localAddress) {
         lines.push("Warning:     PAYAGENT_PRIVATE_KEY is set but is not a valid private key.");
@@ -465,9 +537,17 @@ export function createServer(profile: Profile = "core"): McpServer {
           const raw = await getUSDCBalance(walletAddress, (stored?.network as "base") ?? "base");
           lines.push(`Balance:     ${formatUSDC(raw)} USDC on ${stored?.network ?? "base"}`);
         } catch (err) {
-          lines.push(`Balance:     unavailable (${err instanceof Error ? err.message : String(err)})`);
+          lines.push(
+            `Balance:     unavailable (${err instanceof Error ? err.message : String(err)})`,
+          );
         }
-      } else {
+      }
+      const bank = await readBankLines(
+        getApiKey() ?? stored?.apiKey ?? legacyAgentKey ?? undefined,
+        true,
+      );
+      if (bank.length) lines.push("", ...bank);
+      if (!walletAddress && !bank.length) {
         lines.push(
           "",
           "No wallet known. Either run setup({ email }) for a managed wallet,",
@@ -489,8 +569,16 @@ export function createServer(profile: Profile = "core"): McpServer {
         agent: z
           .string()
           .optional()
-          .describe("Optional stored agent name — limits the feed to that wallet (delegated mode)."),
-        limit: z.number().int().min(1).max(50).default(10).describe("Max entries (default 10, max 50)."),
+          .describe(
+            "Optional stored agent name — limits the feed to that wallet (delegated mode).",
+          ),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(50)
+          .default(10)
+          .describe("Max entries (default 10, max 50)."),
       },
     },
     async ({ agent, limit }) => {
@@ -696,7 +784,9 @@ export function createServer(profile: Profile = "core"): McpServer {
     async ({ name }) => {
       const stored = getAgent(name);
       if (!stored) return textResult(`No x402 agent named \`${name}\`.`, true);
+      const bank = await readBankLines(getApiKey() ?? stored.apiKey, true);
       const lines = [
+        ...(bank.length ? [...bank, "", "Or, for x402 payments:"] : []),
         `Fund x402 agent \`${name}\` by sending USDC on ${stored.network ?? "base"} to:`,
         "",
         `  ${stored.walletAddress}`,

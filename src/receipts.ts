@@ -55,9 +55,62 @@ export interface PaymentReceipt {
   bodyExcerpt?: string;
   /** Set when the request failed after the payment was signed. */
   error?: string;
+  /**
+   * Set when the seller settled the payment and then failed to deliver
+   * (`PaymentUndeliveredError`). `retryUntil` is the deadline for a safe
+   * same-key retry — kept from the FIRST undelivered attempt, never
+   * extended by later ones.
+   */
+  undelivered?: { txHash: string; retryUntil: string };
 }
 
 const MAX_RECEIPTS = 200;
+
+/**
+ * How long a same-key retry of an undelivered DELEGATED payment stays safe.
+ * ArisPay's sign cache replays the same signed payment for a repeated
+ * (agent, idempotencyKey) for 10 minutes from the server's sign time, which
+ * is always after our `startedAt`. Nine minutes from `startedAt` keeps the
+ * retry inside that window with margin. Past it, the server signs a NEW
+ * payment, so the retry would charge twice.
+ */
+export const UNDELIVERED_RETRY_WINDOW_MS = 9 * 60_000;
+
+/**
+ * The stored agent to retry with when re-sending `prior`'s payment is safe:
+ * a delegated payment the seller settled but did not deliver, still inside
+ * the retry window. Null in every other case (the caller must treat the key
+ * as a duplicate). Local-key payments are never safe to retry — each call
+ * signs a fresh nonce.
+ */
+export function undeliveredRetryAgent(
+  prior: PaymentReceipt | undefined,
+  now: number = Date.now(),
+): string | null {
+  if (!prior?.undelivered || prior.mode !== "delegated" || !prior.agent) return null;
+  const until = Date.parse(prior.undelivered.retryUntil);
+  return Number.isFinite(until) && now < until ? prior.agent : null;
+}
+
+/**
+ * The `undelivered` marker for a failed attempt, or undefined when `err` is
+ * not a `PaymentUndeliveredError` (matched by name, so it works across
+ * payagent versions). The deadline carries over from `prior`.
+ */
+export function undeliveredMarker(
+  err: unknown,
+  startedAt: string,
+  prior?: PaymentReceipt,
+): PaymentReceipt["undelivered"] {
+  if (!(err instanceof Error) || err.name !== "PaymentUndeliveredError") return undefined;
+  const txHash = (err as { txHash?: unknown }).txHash;
+  return {
+    txHash: typeof txHash === "string" ? txHash : "",
+    retryUntil:
+      prior?.undelivered?.retryUntil ??
+      new Date(Date.parse(startedAt) + UNDELIVERED_RETRY_WINDOW_MS).toISOString(),
+  };
+}
 
 function receiptsPath(): string {
   const dir = process.env.PAYAGENT_CONFIG_DIR ?? join(homedir(), ".payagent");

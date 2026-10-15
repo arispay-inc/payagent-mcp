@@ -4,10 +4,13 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   type PaymentReceipt,
+  UNDELIVERED_RETRY_WINDOW_MS,
   decodeSettlementHeader,
   getReceipt,
   listReceipts,
   saveReceipt,
+  undeliveredMarker,
+  undeliveredRetryAgent,
 } from "./receipts.js";
 
 function receipt(key: string, overrides: Partial<PaymentReceipt> = {}): PaymentReceipt {
@@ -86,5 +89,69 @@ describe("decodeSettlementHeader", () => {
     expect(decodeSettlementHeader(null)).toBeNull();
     expect(decodeSettlementHeader("not-base64-json")).toBeNull();
     expect(decodeSettlementHeader(Buffer.from("{}").toString("base64"))).toBeNull();
+  });
+});
+
+describe("undelivered retry — the one same-key retry that is safe", () => {
+  const START = "2026-10-07T12:00:00.000Z";
+  const T0 = Date.parse(START);
+  const undeliveredError = Object.assign(new Error("settled, not delivered"), {
+    name: "PaymentUndeliveredError",
+    txHash: "0xsettled",
+  });
+
+  function delegatedUndelivered(overrides: Partial<PaymentReceipt> = {}): PaymentReceipt {
+    return receipt("intent-0001", {
+      mode: "delegated",
+      agent: "wallet",
+      httpStatus: null,
+      error: "settled, not delivered",
+      undelivered: {
+        txHash: "0xsettled",
+        retryUntil: new Date(T0 + UNDELIVERED_RETRY_WINDOW_MS).toISOString(),
+      },
+      ...overrides,
+    });
+  }
+
+  it("allows a retry of an undelivered delegated payment inside the window, with its agent", () => {
+    expect(undeliveredRetryAgent(delegatedUndelivered(), T0 + 60_000)).toBe("wallet");
+  });
+
+  it("locks the key once the window passes (the server would sign a NEW payment)", () => {
+    expect(
+      undeliveredRetryAgent(delegatedUndelivered(), T0 + UNDELIVERED_RETRY_WINDOW_MS),
+    ).toBeNull();
+  });
+
+  it("never allows a retry of a local-key payment (every call signs a fresh nonce)", () => {
+    expect(undeliveredRetryAgent(delegatedUndelivered({ mode: "local" }), T0)).toBeNull();
+  });
+
+  it("never allows a retry of an ordinary paid or failed receipt", () => {
+    expect(
+      undeliveredRetryAgent(receipt("k", { mode: "delegated", agent: "wallet" }), T0),
+    ).toBeNull();
+    expect(undeliveredRetryAgent(undefined, T0)).toBeNull();
+  });
+
+  it("keeps the window inside the server's 10-minute sign cache", () => {
+    expect(UNDELIVERED_RETRY_WINDOW_MS).toBeLessThan(10 * 60_000);
+  });
+
+  it("marks only PaymentUndeliveredError, with a deadline from the first attempt", () => {
+    expect(undeliveredMarker(new Error("network down"), START)).toBeUndefined();
+    const first = undeliveredMarker(undeliveredError, START);
+    expect(first).toEqual({
+      txHash: "0xsettled",
+      retryUntil: new Date(T0 + UNDELIVERED_RETRY_WINDOW_MS).toISOString(),
+    });
+    // A second undelivered attempt never extends the deadline.
+    const later = undeliveredMarker(
+      undeliveredError,
+      "2026-10-07T12:05:00.000Z",
+      delegatedUndelivered(),
+    );
+    expect(later?.retryUntil).toBe(first?.retryUntil);
   });
 });

@@ -106,7 +106,7 @@ export const TOOL_META: Record<ToolName, ToolMeta> = {
   },
   balance: {
     description:
-      "Read-only: shows the active payment identity — the stored ArisPay agent (delegated) or the PAYAGENT_PRIVATE_KEY-derived address (self-custody) — with its USDC deposit address, on-chain balance, and (delegated) spend-mandate limits. Spends no money, never pays. Select this to find where to send USDC, to confirm a deposit landed, or when a payment fails.",
+      "Read-only: shows where the money is — the active payment identity (the stored ArisPay agent, delegated, or the PAYAGENT_PRIVATE_KEY-derived address, self-custody) with its USDC deposit address, on-chain balance and (delegated) spend-mandate limits, plus the account holder's own bank accounts (vIBANs) with their balances and pay-in details. Spends no money, never pays. Select this to tell the human where their money is and how to add more, to confirm a deposit landed, or when a payment fails.",
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
@@ -149,12 +149,12 @@ export const TOOL_META: Record<ToolName, ToolMeta> = {
   },
   fund_agent: {
     description:
-      "Read-only: prints the USDC deposit address for a stored agent wallet so a human can fund it. Sends nothing and moves no money. IMPORTANT: only send USDC on the shown network — other tokens or networks may be lost permanently. Use balance to confirm the deposit landed.",
+      "Read-only: prints how a human funds a stored agent — the bank details of the account holder's own bank account (vIBAN) for a bank transfer, and the agent wallet's USDC deposit address. Sends nothing and moves no money. IMPORTANT: only send USDC on the shown network — other tokens or networks may be lost permanently. Use balance to confirm the deposit landed.",
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
       idempotentHint: true,
-      openWorldHint: false,
+      openWorldHint: true,
     },
   },
   list_agents: {

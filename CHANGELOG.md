@@ -1,5 +1,27 @@
 # @arispay/payagent-mcp
 
+## 4.2.0
+
+### Minor Changes
+
+- c4f951e: Agents can now see where the money is. `payagent` adds `DelegationClient.getBankAccounts()`. It reads the account holder's own bank accounts (vIBANs) and balances, which are the same accounts BuyForMe shows. The MCP `balance` and `fund_agent` tools now print those balances and the pay-in details, next to the USDC wallet. `setup` names bank transfer as a way to fund. Read-only; moves no money.
+
+### Patch Changes
+
+- Updated dependencies [c4f951e]
+  - payagent@3.1.0
+
+## 4.1.1
+
+### Patch Changes
+
+- 27903c5: Docs correction: the README, smithery.yaml and the stdio entrypoint comment still said "six core tools" after `check_payment_signal` shipped in 4.1.0. The published 4.1.0 npm description already said seven, so the README that ships inside the tarball contradicted it. The tool table now lists `check_payment_signal` (spends 1¢ per uncached call; cached artifacts and unknown resources spend nothing), and the annotation note names `pay` and `check_payment_signal` as the destructive pair. No code change.
+- 5fa2eaa: `pay` now lets the one safe same-key retry through. When a delegated payment was settled but not delivered (`PaymentUndeliveredError`), calling `pay` again with the same `idempotencyKey` within 9 minutes re-sends the same signed payment, so the seller can re-serve it with no new charge. Before, the duplicate guard blocked that retry and pushed the agent to a fresh key, which is a second payment. The retry always uses the agent that signed, never a local key. Local-key payments and expired windows stay locked as duplicates.
+- Updated dependencies [dd08223]
+- Updated dependencies [ee5ee2a]
+- Updated dependencies [389546c]
+  - payagent@3.0.0
+
 ## 4.1.0
 
 ### Minor Changes
